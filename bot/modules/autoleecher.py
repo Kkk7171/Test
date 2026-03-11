@@ -52,7 +52,7 @@ TAMILMV_HW = f"{Tamilmv_domain}/index.php?/forums/forum/17-hollywood-movies-in-m
 TAMILMV_TAMIL_HD = f"{Tamilmv_domain}/index.php?/forums/forum/11-web-hd-itunes-hd-bluray/all.xml" 
 TAMILMV_TAMIL_CAM = f"{Tamilmv_domain}/index.php?/forums/forum/10-predvd-dvdscr-cam-tc/all.xml"
 TAMILMV_TAMIL_PERDVD = f"{Tamilmv_domain}/index.php?/forums/forum/10-predvd-dvdscr-cam-tc/all.xml"
-TAMILMV_TAMIL_WEB_SERIES = f"{Tamilmv_domain}/index.php?/forums/forum/19-web-series-tv-shows/all.xml"
+#TAMILMV_TAMIL_WEB_SERIES = f"{Tamilmv_domain}/index.php?/forums/forum/19-web-series-tv-shows/all.xml"
 TAMILMV_TELEGU_HDRIP = f"{Tamilmv_domain}/index.php?/forums/forum/25-hd-rips-dvd-rips-br-rips/all.xml"
 TAMILMV_TELEGU_WEBHD = f"{Tamilmv_domain}/index.php?/forums/forum/24-web-hd-itunes-hd-bluray/all.xml"
 TAMILMV_HINDI_WEBHD = f"{Tamilmv_domain}/index.php?/forums/forum/58-web-hd-itunes-hd-bluray/all.xml"
@@ -63,7 +63,7 @@ TAMILMV_ENGLISH_WEBHD = f"{Tamilmv_domain}/index.php?/forums/forum/49-web-hd-itu
 TAMILBLASTER_TAMIL = f"{Tamilblaster_domain}/index.php?/forums/forum/7-tamil-new-movies-hdrips-bdrips-dvdrips-hdtv/all.xml" 
 TAMILBLASTER_HW = f"{Tamilblaster_domain}/index.php?/forums/forum/9-tamil-dubbed-movies-bdrips-hdrips-dvdscr-hdcam-in-multi-audios/all.xml" 
 # If You dont want anythig you can remove from here - made by ThiruXD from ThiruEmpire
-rss_urls = [TAMILMV_HW, TAMILMV_TAMIL_HD, TAMILMV_TAMIL_CAM, TAMILMV_TAMIL_PERDVD, TAMILMV_TELEGU_HDRIP, TAMILMV_TELEGU_WEBHD, TAMILMV_HINDI_WEBHD, TAMILMV_MALAY_WEBHD, TAMILMV_MALAY_PreDVD, TAMILMV_ENGLISH_WEBHD, TAMILBLASTER_TAMIL, TAMILBLASTER_HW, TAMILMV_TAMIL_WEB_SERIES] # Add here your rss url variable
+rss_urls = [TAMILMV_HW, TAMILMV_TAMIL_HD, TAMILMV_TAMIL_CAM, TAMILMV_TAMIL_PERDVD, TAMILMV_TELEGU_HDRIP, TAMILMV_TELEGU_WEBHD, TAMILMV_HINDI_WEBHD, TAMILMV_MALAY_WEBHD, TAMILMV_MALAY_PreDVD, TAMILMV_ENGLISH_WEBHD, TAMILBLASTER_TAMIL, TAMILBLASTER_HW] # Add here your rss url variable
 
 # To Set Domain from db
 @new_task
@@ -256,9 +256,9 @@ async def RSS_auto_leecher():
                     keyword = 'tamilmv_tamil_dvd'
                     await tamilmv(rss_url, keyword)
           
-                elif rss_url == TAMILMV_TAMIL_WEB_SERIES:
-                    keyword = 'tamilmv_tamil_web_series'
-                    await tamilmv(rss_url, keyword)
+              #  elif rss_url == TAMILMV_TAMIL_WEB_SERIES:
+               #     keyword = 'tamilmv_tamil_web_series'
+                #    await tamilmv(rss_url, keyword)
 
                 elif rss_url == TAMILMV_TAMIL_CAM:
                     keyword = 'tamilmv_tamil_cam_rip'
@@ -520,11 +520,70 @@ async def delete_thumbnail(client, message):
     
     await message.reply("🗑️ Thumbnail deleted.")
 
+# Made By ThiruXD
+@new_task
+async def mannual_scrape(client, message):
+    bot_info = await bot.get_me()
+    bot_id = bot_info.id
+    data = thumbs.find_one({"_id": bot_id})
+    if ' ' in message.text:
+        get_url = message.text.split(' ')[1]
+    else:
+      return await message.reply(f"add any url....")
+    cget = create_scraper().request
+    post_resp = cget("GET", get_url, allow_redirects=False)
+    post_soup = BeautifulSoup(post_resp.text, 'html.parser')
+    mag = post_soup.select('a[href^="magnet:?xt=urn:btih:"]')
+    tor = post_soup.select('a[data-fileext="torrent"]')
+    parse_data = f"<b><u>{post_soup.title.string}</u></b>"
+
+    post_title = await message.reply(f"Movie Name: {parse_data} \n\n - Say Jai BYNF \n Made By @ThiruEmpire.")
+
+    MT_list = []
+    for no, (t, m) in enumerate(zip(tor, mag), start=1):
+      filename = sub(r"www\S+|\- |\.torrent", '', t.string)
+      p_text = f'''🧲 Magnet Name: {filename} --> \n\n <code>{m['href']}</code> \n\n 🗒️Torrent file --> <a href="{t['href']}"><b>Link</b></a>.'''
+      MT_list.append([f"{filename}", f"{t['href']}", f"{p_text}"])
+
+    for atl in MT_list:
+      file_name = f"{atl[0]}.torrent"
+      file_link = atl[1]
+      paste_text = atl[2]
+      paste_link = post_to_dpaste(paste_text)
+      file_caption = f"🧲 Magnet Name: {file_name} \n\n 🧲 Magnet links:\n{paste_link}"
+      if download_torrent(file_link, file_name):
+        await asyncio.sleep(3)
+        filee = await bot.send_document(chat_id=config_dict['AUTO_LEECH_GRP_ID'], document=file_name, caption=file_caption)
+        os.remove(file_name)
+        if not data:
+          try:
+            leech_msg = await filee.reply_text("/qbleech")
+            await qb_leech(bot, leech_msg)
+            await asyncio.sleep(BB_DELAY)
+            await leech_msg.delete()
+          except Exception as e:
+            await filee.reply_text(f"❌ Error: {e}")
+            return None
+        else:
+          try:
+            leech_msg = await filee.reply_text(f"/qbleech -t {data['url']}")
+            await qb_leech(bot, leech_msg)
+            await asyncio.sleep(BB_DELAY)
+            await leech_msg.delete()
+          except Exception as e:
+            await filee.reply_text(f"❌ Error: {e}")
+            return None
+      else:
+        await bot.send_message(f"❌ Failed to download torrent file. \n\n {file_caption}")
+
+
 
 # Leech help command
 @new_task
 async def auto_leech_help(client, message):
     HELP_TEXT_AA = """<b>⌬ Auto Leech Commands:
+Manual Leech Commands:
+- /scrape <i>[url]</i> : to scrape magnet from 1TamilMv or 1TamilBlasters.
 
 Steps To Activate Your Auto Leech:</b>
 ┠ Step No 1 :</b> Add an <i>AUTO_LEECH_GRP_ID</i> in config file or add in bot settings /bs and then restart the bot.
@@ -556,7 +615,7 @@ Powered By @ThiruEmpire</b>
     await message.reply_text(HELP_TEXT_AA)
 
   
-# if any doubt contact @ThiruXD in telegram
+# if any doubt contact @ThiruXD in telegram 
 RSS_auto_leecher()
 bot.add_handler(MessageHandler(auto_leech_help, filters=command("auto_leech") & CustomFilters.sudo))
 bot.add_handler(MessageHandler(clone_ThiruEmpire, filters=command("setlbot") & CustomFilters.sudo))
@@ -565,3 +624,4 @@ bot.add_handler(MessageHandler(getdomains, filters=command("getd") & CustomFilte
 bot.add_handler(MessageHandler(add_thumbnail, filters=command("add_thumb") & CustomFilters.sudo))
 bot.add_handler(MessageHandler(show_thumbnail, filters=command("show_thumb") & CustomFilters.sudo))
 bot.add_handler(MessageHandler(delete_thumbnail, filters=command("del_thumb") & CustomFilters.sudo))
+bot.add_handler(MessageHandler(mannual_scrape, filters=command("scrape") & CustomFilters.sudo))
