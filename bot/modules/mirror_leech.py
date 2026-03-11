@@ -540,7 +540,7 @@ async def clean_caption(text: str) -> str:
         text = re.sub(pattern, '', text, flags=re.IGNORECASE)
 
     # === 3. Remove specific unwanted words (case-insensitive) ===
-    blacklist_words = ["join", "download", "link", "follow", "fast", "Jᴏɪɴ", "mkv"]
+    blacklist_words = ["join", "download", "link", "follow", "fast", "Jᴏɪɴ", "mkv", "Fɪʟᴇɴᴀᴍᴇ", "ᴊᴏɪɴ", "ᴡɪᴛʜ", "ᴜs", "Main", "Group", "Backup", "ʝσιи", "ѕυρρσят", "ѕнαяє", "Pᴏᴡᴇʀᴇᴅ Bʏ", "Tᴠ - Wᴇʙ Sᴇʀɪᴇs", "-", "»", "«", "•", "Mᴏᴠɪᴇs", "• ◆ •", "Fᴀsᴛ Dᴏᴡɴʟᴏᴀᴅ" ,"Oɴʟɪɴᴇ Wᴀᴛᴄʜɪɴɢ", "Mᴜʟᴛɪᴘʟᴇ Aᴘᴘs", "Cʟɪᴄᴋ Tᴏ Dᴏᴡɴʟᴏᴀᴅ", "𝖧ᴏᴡ","Mᴀɪɴ Cʜᴀɴɴᴇʟ","Cʟɪᴄᴋ Hᴇʀᴇ", "Mᴏᴠɪᴇ Rᴇϙᴜᴇsᴛ 24×7" ," : Cʟɪᴄᴋ Hᴇʀᴇ", "Jᴏɪɴ", "Fᴀsᴛ","𝖣ᴏᴡɴʟᴏᴀᴅ","𝖫ɪɴᴋ","𝖳ᴏ","»"]
     text = re.sub(r'\b(?:' + '|'.join(blacklist_words) + r')\b', '', text, flags=re.IGNORECASE)
 
     # === 4. Remove all colons ===
@@ -563,15 +563,24 @@ async def clean_caption(text: str) -> str:
 
 
 async def ruto_rename_thiruxd(client, message):
-    bot_info = await bot.get_me()
+    bot_info = await client.get_me()
     bot_id = bot_info.id
+    if message.from_user and int(message.from_user.id) == int(bot_id):
+        selftag_msg = await message.reply_text(
+            f"⚠️ I cannot leech files from myself! (user_id={message.from_user.id})"
+        )
+        await sleep(3)
+        await selftag_msg.delete()
+        return
     data = thumbs.find_one({"_id": bot_id})
     if message.caption:
-        file_name = message.caption 
-    else:
+        file_name = message.caption
+    elif message.document:
         file_name = message.document.file_name
+    else:
+        return  
+
     clean_text = await clean_caption(file_name)
-   # reply_msg = await message.reply_text(f"/qbleech -n {clean_text}.mkv")
     if not data:
         reply_msg = await message.reply_text(f"/qbleech -n {clean_text}.mkv")
     else:
@@ -580,9 +589,10 @@ async def ruto_rename_thiruxd(client, message):
     await sleep(5)
     await reply_msg.delete()
 
+
 bot.add_handler(MessageHandler(mirror, filters=command(BotCommands.MirrorCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(qb_mirror, filters=command(BotCommands.QbMirrorCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(leech, filters=command(BotCommands.LeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
 bot.add_handler(MessageHandler(qb_leech, filters=command(BotCommands.QbLeechCommand) & CustomFilters.authorized & ~CustomFilters.blacklisted))
-bot.add_handler(MessageHandler(ruto_rename_thiruxd, filters=filters.document & CustomFilters.authorized & ~CustomFilters.blacklisted))
+bot.add_handler(MessageHandler(ruto_rename_thiruxd, filters=filters.document & CustomFilters.sudo & ~CustomFilters.blacklisted))
 bot.add_handler(CallbackQueryHandler(thirumlcb, filters=regex(r'^thiruml')))
