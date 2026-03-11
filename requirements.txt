@@ -30,7 +30,6 @@ psutil
 pybase64
 pycountry
 pymongo
-kurigram
 python-dotenv
 python-magic
 qbittorrent-api
@@ -44,3 +43,4 @@ xattr
 yt-dlp[default,curl-cffi]
 cloudscraper
 pytz
+pyrofork==2.2.11
