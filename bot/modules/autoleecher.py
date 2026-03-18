@@ -116,7 +116,7 @@ def get_all_links():
 def post_to_dpaste(content):
     try:
         r = requests.post("https://dpaste.org/api/",
-                          data={"content": content, "syntax": "json", "expiry_days": "360"})
+                          data={"content": content, "syntax": "json", "expiry_days": "360"}, timeout=30)
         return r.text.strip() if r.status_code == 200 else f"dpaste error: {r.status_code}"
     except Exception as e:
         return f"Error: {e}"
@@ -129,7 +129,7 @@ def upload_to_imgbb(image_path):
 
 def download_torrent(url, file_name):
     try:
-        r = _scraper.get(url, allow_redirects=True)
+        r = _scraper.get(url, allow_redirects=True, timeout=30)
         if r.status_code == 200 and b"announce" in r.content[:500]:
             with open(file_name, "wb") as f:
                 f.write(r.content)
@@ -143,7 +143,7 @@ def download_torrent(url, file_name):
 def scrape_links(post_url):
     """Fetch post page, return (tor, mag, title). Returns (None, None, None) on error."""
     try:
-        r = _scraper.request("GET", post_url, allow_redirects=True)
+        r = _scraper.request("GET", post_url, allow_redirects=True, timeout=30)
         soup = BeautifulSoup(r.text, 'html.parser')
         mag  = soup.select('a[href^="magnet:?xt=urn:btih:"]')
         tor  = soup.select('a[data-fileext="torrent"]')
@@ -321,7 +321,11 @@ async def pending_queue_worker():
 
 async def _process_feed(rss_url, keyword):
     """Shared logic for both tamilmv and tamilblaster."""
-    feed = await sync_to_async(feedparser.parse, rss_url)
+    try:
+        feed = await asyncio.wait_for(sync_to_async(feedparser.parse, rss_url), timeout=30)
+    except asyncio.TimeoutError:
+        print(f"⏰ RSS feed timed out (30s): {rss_url}")
+        return
     if len(feed.entries) == 0:
         msg = await bot.send_message(
             config_dict['AUTO_LEECH_GRP_ID'],
