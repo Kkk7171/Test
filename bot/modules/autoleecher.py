@@ -17,10 +17,13 @@ from cloudscraper import create_scraper
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.modules.mirror_leech import *
-from bot.helper.ext_utils.bot_utils import new_task
+from bot.helper.ext_utils.bot_utils import new_task, sync_to_async
 import pymongo
 from pymongo import MongoClient
 from bot import DATABASE_URL, DATABASE_NAME
+
+# Shared scraper instance — created once, reused everywhere (saves memory/CPU)
+_scraper = create_scraper()
 
 temp_urls = {}  # pls dont remove this
 is_auto_leecher = True  # if this variable false rss will not run
@@ -126,7 +129,7 @@ def upload_to_imgbb(image_path):
 
 def download_torrent(url, file_name):
     try:
-        r = create_scraper().get(url, allow_redirects=True)
+        r = _scraper.get(url, allow_redirects=True)
         if r.status_code == 200 and b"announce" in r.content[:500]:
             with open(file_name, "wb") as f:
                 f.write(r.content)
@@ -140,7 +143,7 @@ def download_torrent(url, file_name):
 def scrape_links(post_url):
     """Fetch post page, return (tor, mag, title). Returns (None, None, None) on error."""
     try:
-        r = create_scraper().request("GET", post_url, allow_redirects=True)
+        r = _scraper.request("GET", post_url, allow_redirects=True)
         soup = BeautifulSoup(r.text, 'html.parser')
         mag  = soup.select('a[href^="magnet:?xt=urn:btih:"]')
         tor  = soup.select('a[data-fileext="torrent"]')
@@ -195,7 +198,7 @@ async def leech_mt_list(MT_list):
         file_name  = os.path.basename(atl[0]) + ".torrent"
         file_link  = atl[1]
         link_type  = atl[3]
-        paste_link = post_to_dpaste(atl[2])
+        paste_link = await sync_to_async(post_to_dpaste, atl[2])
         caption    = f"🗒️ Name: {atl[0]}\n\n🔗 Links:\n{paste_link}"
         try:
             if link_type == 'magnet':
@@ -208,7 +211,7 @@ async def leech_mt_list(MT_list):
                 await asyncio.sleep(BB_DELAY)
                 await leech_msg.delete()
             else:
-                if download_torrent(file_link, file_name):
+                if await sync_to_async(download_torrent, file_link, file_name):
                     filee = await bot.send_document(
                         chat_id=config_dict['AUTO_LEECH_GRP_ID'],
                         document=file_name, caption=caption
@@ -271,7 +274,7 @@ async def pending_queue_worker():
                 continue
 
             # Re-scrape the page
-            tor, mag, title = scrape_links(post_url)
+            tor, mag, title = await sync_to_async(scrape_links, post_url)
             if tor is None:
                 continue  # network error, retry next cycle
 
@@ -294,7 +297,7 @@ async def pending_queue_worker():
                     pass
 
                 # Update DB so main RSS loop skips it from now on
-                collection.update_one(
+                await sync_to_async(collection.update_one,
                     {"keyword": meta['keyword']},
                     {"$set": {"url": post_url}},
                     upsert=True
@@ -318,7 +321,7 @@ async def pending_queue_worker():
 
 async def _process_feed(rss_url, keyword):
     """Shared logic for both tamilmv and tamilblaster."""
-    feed = feedparser.parse(rss_url)
+    feed = await sync_to_async(feedparser.parse, rss_url)
     if len(feed.entries) == 0:
         msg = await bot.send_message(
             config_dict['AUTO_LEECH_GRP_ID'],
@@ -334,16 +337,16 @@ async def _process_feed(rss_url, keyword):
     if first_link in pending_posts:
         return
 
-    existing = collection.find_one({"keyword": keyword})
+    existing = await sync_to_async(collection.find_one, {"keyword": keyword})
     if existing is None or existing.get("url") is None:
-        collection.insert_one({"keyword": keyword, "url": "Nhai-Illa"})
+        await sync_to_async(collection.insert_one, {"keyword": keyword, "url": "Nhai-Illa"})
         existing = {"url": "Nhai-Illa"}
 
     # Already seen and leeched — nothing to do
     if existing["url"] == first_link:
         return
 
-    tor, mag, title = scrape_links(first_link)
+    tor, mag, title = await sync_to_async(scrape_links, first_link)
     if tor is None:
         return  # network error
 
@@ -377,7 +380,7 @@ async def _process_feed(rss_url, keyword):
     except Exception:
         pass
 
-    collection.update_one({"keyword": keyword}, {"$set": {"url": first_link}})
+    await sync_to_async(collection.update_one, {"keyword": keyword}, {"$set": {"url": first_link}})
     await leech_mt_list(MT_list)
 
     end_sticker_id = "CAACAgUAAxkBAAIjxGY75nsXUSCCFO6LB-KiGRPC5kiuAAJzBgACJggpVXKB2uxzC9oxHgQ"
@@ -501,7 +504,7 @@ async def mannual_scrape(client, message):
         return await message.reply("add any url....")
     get_url = message.text.split(' ')[1]
 
-    tor, mag, title = scrape_links(get_url)
+    tor, mag, title = await sync_to_async(scrape_links, get_url)
     if tor is None:
         return await message.reply("❌ Failed to fetch the page.")
 
